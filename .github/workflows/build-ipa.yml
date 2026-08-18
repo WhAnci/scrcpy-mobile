@@ -164,6 +164,9 @@ jobs:
           # 5. Build scrcpy server
           make -C porting scrcpy-server
 
+          # 6. Copy scrcpy-server to porting/server/scrcpy-server for Xcode project resource reference
+          cp -v scrcpy-app/ADBClient/scrcpy-server porting/server/scrcpy-server
+
       - name: Verify Xcode library layout
         shell: bash
         run: |
