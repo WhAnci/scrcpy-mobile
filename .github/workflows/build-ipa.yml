@@ -75,6 +75,15 @@ jobs:
           s = p.read_text()
           s = s.replace('export JAVA_HOME="/opt/homebrew/opt/openjdk@17"', 'export JAVA_HOME="$$(/usr/libexec/java_home -v 17)"')
           p.write_text(s)
+
+          # Patch adb-mobile make-adb.sh to pass explicit Protobuf locations to CMake
+          p2 = Path('external/adb-mobile/porting/scripts/make-adb.sh')
+          s2 = p2.read_text()
+          s2 = s2.replace(
+              'cmake -DCMAKE_OSX_SYSROOT=$SDK_NAME -DCMAKE_OSX_ARCHITECTURES=$ARCH_NAME  \\\n\t-DCMAKE_OSX_DEPLOYMENT_TARGET=$DEPLOYMENT_TARGET -DCMAKE_BUILD_TYPE=Debug ..;',
+              'cmake -DCMAKE_OSX_SYSROOT=$SDK_NAME -DCMAKE_OSX_ARCHITECTURES=$ARCH_NAME  \\\n\t-DCMAKE_OSX_DEPLOYMENT_TARGET=$DEPLOYMENT_TARGET -DCMAKE_BUILD_TYPE=Debug \\\n\t-DProtobuf_INCLUDE_DIR="$SOURCE_ROOT/external/protobuf/src" \\\n\t-DProtobuf_LIBRARY="$SOURCE_ROOT/output/$SDK_NAME/$ARCH_NAME/libprotobuf.a" \\\n\t-DProtobuf_PROTOC_EXECUTABLE="$(which protoc)" ..;'
+          )
+          p2.write_text(s2)
           PY
 
           cmake --version
