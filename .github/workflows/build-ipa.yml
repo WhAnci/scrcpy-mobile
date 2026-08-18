@@ -23,10 +23,19 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          brew install cmake meson ninja pkg-config openjdk@17 fmt googletest
+          brew install meson ninja pkg-config openjdk@17 fmt googletest
+
+          # The old iOS build scripts are not compatible with CMake 4.x.
+          # Use the latest 3.31 maintenance release instead.
+          CMAKE_VERSION=3.31.12
+          CMAKE_ROOT="$RUNNER_TEMP/cmake-${CMAKE_VERSION}-macos-universal"
+          curl -fL \
+            "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-macos-universal.tar.gz" \
+            -o "$RUNNER_TEMP/cmake.tar.gz"
+          tar -xzf "$RUNNER_TEMP/cmake.tar.gz" -C "$RUNNER_TEMP"
+          CMAKE_BIN="$CMAKE_ROOT/CMake.app/Contents/bin"
 
           # gas-preprocessor is no longer available as a Homebrew formula.
-          # Install the upstream script directly into a temporary bin directory.
           TOOL_BIN="$RUNNER_TEMP/scrcpy-tools/bin"
           mkdir -p "$TOOL_BIN"
           curl -fL \
@@ -34,9 +43,7 @@ jobs:
             -o "$TOOL_BIN/gas-preprocessor.pl"
           chmod +x "$TOOL_BIN/gas-preprocessor.pl"
 
-          # adb-mobile requires host protoc 28.3. Modern Homebrew no longer
-          # accepts its checked-in local protobuf.rb directly, so use the
-          # official prebuilt protoc release instead.
+          # adb-mobile requires host protoc 28.3.
           case "$(uname -m)" in
             arm64) PROTOC_ARCH="aarch_64" ;;
             x86_64) PROTOC_ARCH="x86_64" ;;
@@ -49,15 +56,16 @@ jobs:
             -o "$RUNNER_TEMP/protoc.zip"
           unzip -q "$RUNNER_TEMP/protoc.zip" -d "$PROTOC_DIR"
 
+          echo "$CMAKE_BIN" >> "$GITHUB_PATH"
           echo "$TOOL_BIN" >> "$GITHUB_PATH"
           echo "$PROTOC_DIR/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix openjdk@17)/bin" >> "$GITHUB_PATH"
           echo "JAVA_HOME=$(/usr/libexec/java_home -v 17)" >> "$GITHUB_ENV"
 
+          "$CMAKE_BIN/cmake" --version
           "$PROTOC_DIR/bin/protoc" --version
-          "$TOOL_BIN/gas-preprocessor.pl" --help >/dev/null 2>&1 || true
 
-      - name: Patch CI-only Java path
+      - name: Patch CI-only build paths
         shell: bash
         run: |
           set -euxo pipefail
@@ -69,17 +77,51 @@ jobs:
           p.write_text(s)
           PY
 
-      - name: Build ADB library
+          cmake --version
+          protoc --version
+
+      - name: Build ADB library for iPhone arm64
         shell: bash
         run: |
           set -euxo pipefail
-          make -C external/adb-mobile
+
+          # actions/checkout uses shallow submodules, while adb-mobile's
+          # protobuf script checks out this tag by name.
+          git -C external/adb-mobile/external/protobuf fetch --depth=1 origin \
+            refs/tags/v28.3:refs/tags/v28.3
+          git -C external/adb-mobile/external/protobuf/third_party/abseil-cpp fetch --depth=1 origin \
+            refs/tags/20240722.0:refs/tags/20240722.0 || true
+
+          # Only device arm64 is needed for the IPA. Avoid simulator builds.
+          make -C external/adb-mobile/porting \
+            lz4/iphoneos/arm64 \
+            zstd/iphoneos/arm64 \
+            brotli/iphoneos/arm64 \
+            protobuf/iphoneos/arm64 \
+            adb/iphoneos/arm64
+
+          ADB_OUT="external/adb-mobile/output/iphoneos/arm64"
+          rm -f "$ADB_OUT/libadb-full.a"
+          test -n "$(find "$ADB_OUT" -maxdepth 1 -name '*.a' -print -quit)"
+          libtool -static -o "$ADB_OUT/libadb-full.a" "$ADB_OUT"/*.a
+
+          mkdir -p external/adb-mobile/output/include
+          cp -av external/adb-mobile/porting/adb/include/*.h external/adb-mobile/output/include/
+
+          ls -lh "$ADB_OUT/libadb-full.a"
 
       - name: Build iOS dependencies and scrcpy 3.3.4 server
         shell: bash
         run: |
           set -euxo pipefail
-          make -C porting adb-mobile
+
+          # Mirror porting/Makefile's adb-mobile target without rebuilding all
+          # adb-mobile simulator architectures.
+          mkdir -p porting/libs/iphoneos/arm64 porting/libs/include
+          cp -av external/adb-mobile/output/iphoneos/arm64/libadb-full.a \
+            porting/libs/iphoneos/arm64/
+          cp -av external/adb-mobile/output/include/adb_public.h porting/libs/include/
+
           make -C porting libsdl
           make -C porting ffmpeg
           make -C porting scrcpy
