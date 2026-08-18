@@ -102,6 +102,9 @@ jobs:
         run: |
           set -euxo pipefail
 
+          # Create output directory beforehand to fix defines.sh path expansion bug (cd output && pwd)
+          mkdir -p external/adb-mobile/output
+
           # actions/checkout uses shallow submodules, while adb-mobile's
           # protobuf script checks out this tag by name.
           git -C external/adb-mobile/external/protobuf fetch --depth=1 origin \
