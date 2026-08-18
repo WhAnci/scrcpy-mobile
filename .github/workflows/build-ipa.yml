@@ -1,0 +1,121 @@
+name: Build unsigned IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-ipa.yml'
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          set -euxo pipefail
+          brew update
+          brew install cmake meson ninja pkg-config openjdk@17 gas-preprocessor || true
+
+          # adb-mobile expects protobuf 28.3 specifically.
+          brew unlink protobuf 2>/dev/null || true
+          brew install ./external/adb-mobile/porting/protobuf.rb
+
+          echo "$(brew --prefix openjdk@17)/bin" >> "$GITHUB_PATH"
+          echo "JAVA_HOME=$(/usr/libexec/java_home -v 17)" >> "$GITHUB_ENV"
+
+      - name: Patch CI-only Java path
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('porting/Makefile')
+          s = p.read_text()
+          s = s.replace('export JAVA_HOME="/opt/homebrew/opt/openjdk@17"', 'export JAVA_HOME="$$(/usr/libexec/java_home -v 17)"')
+          p.write_text(s)
+          PY
+
+      - name: Build ADB library
+        shell: bash
+        run: |
+          set -euxo pipefail
+          make -C external/adb-mobile
+
+      - name: Build iOS dependencies and scrcpy 3.3.4 server
+        shell: bash
+        run: |
+          set -euxo pipefail
+          make -C porting adb-mobile
+          make -C porting libsdl
+          make -C porting ffmpeg
+          make -C porting scrcpy
+          make -C porting scrcpy-server
+
+      - name: Prepare Xcode library layout
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p output/iphone output/include
+
+          cp -v external/adb-mobile/output/iphoneos/arm64/libadb-full.a output/iphone/libadb.a
+          cp -v porting/libs/iphoneos/arm64/*.a output/iphone/
+          cp -R porting/libs/include/. output/include/
+
+          echo 'iPhone libraries:'
+          ls -lah output/iphone
+          echo 'scrcpy server:'
+          ls -lah scrcpy-app/ADBClient/scrcpy-server
+
+      - name: Build unsigned iOS app
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -rf build
+          mkdir -p build/Release-iphoneos
+
+          xcodebuild \
+            -project scrcpy-ios/scrcpy-ios.xcodeproj \
+            -target scrcpy-ios \
+            -configuration Release \
+            -sdk iphoneos \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            DEVELOPMENT_TEAM='' \
+            CONFIGURATION_BUILD_DIR="$PWD/build/Release-iphoneos" \
+            build
+
+      - name: Package IPA
+        shell: bash
+        run: |
+          set -euxo pipefail
+          APP_PATH="$(find build/Release-iphoneos -maxdepth 1 -type d -name '*.app' | head -n 1)"
+          test -n "$APP_PATH"
+
+          rm -rf Payload ScrcpyRemote-unsigned.ipa
+          mkdir Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry ScrcpyRemote-unsigned.ipa Payload
+
+          unzip -l ScrcpyRemote-unsigned.ipa | head -n 30
+          ls -lh ScrcpyRemote-unsigned.ipa
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScrcpyRemote-unsigned-ipa
+          path: ScrcpyRemote-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
