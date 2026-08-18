@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          brew install meson ninja pkg-config openjdk@17 fmt googletest
+          brew install meson ninja pkg-config openjdk@17 fmt googletest ffmpeg
 
           # The old iOS build scripts are not compatible with CMake 4.x.
           # Use the latest 3.31 maintenance release instead.
