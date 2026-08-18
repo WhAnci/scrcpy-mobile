@@ -23,15 +23,39 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          brew update
-          brew install cmake meson ninja pkg-config openjdk@17 gas-preprocessor || true
+          brew install cmake meson ninja pkg-config openjdk@17 fmt googletest
 
-          # adb-mobile expects protobuf 28.3 specifically.
-          brew unlink protobuf 2>/dev/null || true
-          brew install ./external/adb-mobile/porting/protobuf.rb
+          # gas-preprocessor is no longer available as a Homebrew formula.
+          # Install the upstream script directly into a temporary bin directory.
+          TOOL_BIN="$RUNNER_TEMP/scrcpy-tools/bin"
+          mkdir -p "$TOOL_BIN"
+          curl -fL \
+            https://raw.githubusercontent.com/libav/gas-preprocessor/master/gas-preprocessor.pl \
+            -o "$TOOL_BIN/gas-preprocessor.pl"
+          chmod +x "$TOOL_BIN/gas-preprocessor.pl"
 
+          # adb-mobile requires host protoc 28.3. Modern Homebrew no longer
+          # accepts its checked-in local protobuf.rb directly, so use the
+          # official prebuilt protoc release instead.
+          case "$(uname -m)" in
+            arm64) PROTOC_ARCH="aarch_64" ;;
+            x86_64) PROTOC_ARCH="x86_64" ;;
+            *) echo "Unsupported macOS arch: $(uname -m)"; exit 1 ;;
+          esac
+          PROTOC_DIR="$RUNNER_TEMP/protoc-28.3"
+          mkdir -p "$PROTOC_DIR"
+          curl -fL \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-osx-${PROTOC_ARCH}.zip" \
+            -o "$RUNNER_TEMP/protoc.zip"
+          unzip -q "$RUNNER_TEMP/protoc.zip" -d "$PROTOC_DIR"
+
+          echo "$TOOL_BIN" >> "$GITHUB_PATH"
+          echo "$PROTOC_DIR/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix openjdk@17)/bin" >> "$GITHUB_PATH"
           echo "JAVA_HOME=$(/usr/libexec/java_home -v 17)" >> "$GITHUB_ENV"
+
+          "$PROTOC_DIR/bin/protoc" --version
+          "$TOOL_BIN/gas-preprocessor.pl" --help >/dev/null 2>&1 || true
 
       - name: Patch CI-only Java path
         shell: bash
