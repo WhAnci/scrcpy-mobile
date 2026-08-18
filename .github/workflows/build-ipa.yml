@@ -76,12 +76,20 @@ jobs:
           s = s.replace('export JAVA_HOME="/opt/homebrew/opt/openjdk@17"', 'export JAVA_HOME="$$(/usr/libexec/java_home -v 17)"')
           p.write_text(s)
 
-          # Patch adb-mobile make-adb.sh to pass explicit Protobuf locations to CMake
+          # Patch adb-mobile make-adb.sh to pass explicit Protobuf locations and Include paths to CMake
           p2 = Path('external/adb-mobile/porting/scripts/make-adb.sh')
           s2 = p2.read_text()
+          inc_flags = (
+              '-I$SOURCE_ROOT/external/protobuf/src '
+              '-I$SOURCE_ROOT/external/protobuf/third_party/abseil-cpp '
+              '-I$SOURCE_ROOT/external/protobuf/third_party/googletest/googletest/include '
+              '-I$SOURCE_ROOT/external/brotli/c/include '
+              '-I$SOURCE_ROOT/external/lz4/lib '
+              '-I$SOURCE_ROOT/external/zstd/lib'
+          )
           s2 = s2.replace(
               'cmake -DCMAKE_OSX_SYSROOT=$SDK_NAME -DCMAKE_OSX_ARCHITECTURES=$ARCH_NAME  \\\n\t-DCMAKE_OSX_DEPLOYMENT_TARGET=$DEPLOYMENT_TARGET -DCMAKE_BUILD_TYPE=Debug ..;',
-              'cmake -DCMAKE_OSX_SYSROOT=$SDK_NAME -DCMAKE_OSX_ARCHITECTURES=$ARCH_NAME  \\\n\t-DCMAKE_OSX_DEPLOYMENT_TARGET=$DEPLOYMENT_TARGET -DCMAKE_BUILD_TYPE=Debug \\\n\t-DProtobuf_INCLUDE_DIR="$SOURCE_ROOT/external/protobuf/src" \\\n\t-DProtobuf_LIBRARY="$SOURCE_ROOT/output/$SDK_NAME/$ARCH_NAME/libprotobuf.a" \\\n\t-DProtobuf_PROTOC_EXECUTABLE="$(which protoc)" ..;'
+              'cmake -DCMAKE_OSX_SYSROOT=$SDK_NAME -DCMAKE_OSX_ARCHITECTURES=$ARCH_NAME  \\\n\t-DCMAKE_OSX_DEPLOYMENT_TARGET=$DEPLOYMENT_TARGET -DCMAKE_BUILD_TYPE=Debug \\\n\t-DProtobuf_INCLUDE_DIR="$SOURCE_ROOT/external/protobuf/src" \\\n\t-DProtobuf_LIBRARY="$SOURCE_ROOT/output/$SDK_NAME/$ARCH_NAME/libprotobuf.a" \\\n\t-DProtobuf_PROTOC_EXECUTABLE="$(which protoc)" \\\n\t-DCMAKE_CXX_FLAGS="' + inc_flags + '" \\\n\t-DCMAKE_C_FLAGS="' + inc_flags + '" ..;'
           )
           p2.write_text(s2)
           PY
