@@ -10,15 +10,43 @@
 #import "CVCreate.h"
 #import "ScrcpyClient.h"
 #import "MenubarViewController.h"
+#import <objc/runtime.h>
 
 // ScrcpyMenubarGuideDidShow
 static NSString *ScrcpyMenubarGuideDidShow = @"ScrcpyMenubarGuideDidShow";
 
 @implementation SDL_uikitviewcontroller (Extend)
 
-// Checked that SDL_uikitviewcontroller not implemented viewDidLoad
--(void)viewDidLoad {
-    [super viewDidLoad];
++ (void)load {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        Class class = [self class];
+        
+        SEL originalSelector = @selector(viewDidLoad);
+        SEL swizzledSelector = @selector(xxx_viewDidLoad);
+        
+        Method originalMethod = class_getInstanceMethod(class, originalSelector);
+        Method swizzledMethod = class_getInstanceMethod(class, swizzledSelector);
+        
+        BOOL didAddMethod =
+            class_addMethod(class,
+                            originalSelector,
+                            method_getImplementation(swizzledMethod),
+                            method_getTypeEncoding(swizzledMethod));
+        
+        if (didAddMethod) {
+            class_replaceMethod(class,
+                                swizzledSelector,
+                                method_getImplementation(originalMethod),
+                                method_getTypeEncoding(originalMethod));
+        } else {
+            method_exchangeImplementations(originalMethod, swizzledMethod);
+        }
+    });
+}
+
+- (void)xxx_viewDidLoad {
+    [self xxx_viewDidLoad];
     [self performSelector:@selector(addMenubarTriggerView) withObject:nil afterDelay:1.f];
 }
 
