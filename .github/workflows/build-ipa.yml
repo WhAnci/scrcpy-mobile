@@ -112,6 +112,8 @@ jobs:
 
       - name: Build iOS dependencies and scrcpy 3.3.4 server
         shell: bash
+        env:
+          ONLY_IPHONEOS: '1'
         run: |
           set -euxo pipefail
 
@@ -122,21 +124,30 @@ jobs:
             porting/libs/iphoneos/arm64/
           cp -av external/adb-mobile/output/include/adb_public.h porting/libs/include/
 
+          # 1. Build libsdl and ffmpeg for iphoneos
           make -C porting libsdl
           make -C porting ffmpeg
-          make -C porting scrcpy
-          make -C porting scrcpy-server
 
-      - name: Prepare Xcode library layout
-        shell: bash
-        run: |
-          set -euxo pipefail
+          # 2. Setup the output directory layout for CMake to find libSDL2 and libav*
           mkdir -p output/iphone output/include
-
           cp -v external/adb-mobile/output/iphoneos/arm64/libadb-full.a output/iphone/libadb.a
           cp -v porting/libs/iphoneos/arm64/*.a output/iphone/
           cp -R porting/libs/include/. output/include/
 
+          # 3. Build scrcpy (which links against libraries in output/iphone)
+          make -C porting scrcpy
+
+          # 4. Copy scrcpy libraries to output directory layout as well
+          cp -v porting/libs/iphoneos/arm64/*.a output/iphone/
+          cp -R porting/libs/include/. output/include/
+
+          # 5. Build scrcpy server
+          make -C porting scrcpy-server
+
+      - name: Verify Xcode library layout
+        shell: bash
+        run: |
+          set -euxo pipefail
           echo 'iPhone libraries:'
           ls -lah output/iphone
           echo 'scrcpy server:'

@@ -106,12 +106,16 @@ build_target() {
 
 # Build for different targets
 build_target "iphoneos-arm64" "arm64" "iphoneos" "13.0"
+if [ "$ONLY_IPHONEOS" != "1" ]; then
 build_target "iphonesimulator-arm64" "arm64" "iphonesimulator" "13.0"
 build_target "iphonesimulator-x86_64" "x86_64" "iphonesimulator" "13.0"
+fi
 
 echo "FFmpeg build completed!"
 echo "Libraries are available in: $OUTPUT"
 echo "Built targets:"
 echo "  - iphoneos/arm64"
+if [ "$ONLY_IPHONEOS" != "1" ]; then
 echo "  - iphonesimulator/arm64"
 echo "  - iphonesimulator/x86_64"
+fi

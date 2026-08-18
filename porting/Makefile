@@ -33,9 +33,13 @@ openssl:
 	cp -av ../external/OpenSSL-for-iPhone/include/openssl ./libs/include;
 
 scrcpy: scrcpy-config mkdir-output
-	for target in iphoneos/arm64:OS64 iphonesimulator/arm64:SIMULATORARM64 iphonesimulator/x86_64:SIMULATOR64; do \
-		target=$$target output_dir=./libs bash scripts/make-scrcpy.sh; \
-	done
+	@if [ "$(ONLY_IPHONEOS)" = "1" ]; then \
+		target="iphoneos/arm64:OS64" output_dir=./libs bash scripts/make-scrcpy.sh; \
+	else \
+		for target in iphoneos/arm64:OS64 iphonesimulator/arm64:SIMULATORARM64 iphonesimulator/x86_64:SIMULATOR64; do \
+			target=$$target output_dir=./libs bash scripts/make-scrcpy.sh; \
+		done; \
+	fi
 	cp -v include/*.h ./libs/include
 
 scrcpy-server:

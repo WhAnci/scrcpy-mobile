@@ -40,6 +40,8 @@ xcodebuild clean build OTHER_CFLAGS="-fembed-bitcode" \
 	CONFIGURATION=Release \
     GCC_PREPROCESSOR_DEFINITIONS='CFRunLoopRunInMode=CFRunLoopRunInMode_fix' \
 	-project SDL2-*/Xcode/SDL/SDL.xcodeproj -scheme "Static Library-iOS" -sdk iphoneos;
+
+if [ "$ONLY_IPHONEOS" != "1" ]; then
 xcodebuild clean build OTHER_CFLAGS="-fembed-bitcode" \
 	BUILD_DIR=$BUILD_DIR/build/iphonesimulator/x86_64 \
 	ARCHS="x86_64" \
@@ -52,19 +54,26 @@ xcodebuild clean build OTHER_CFLAGS="-fembed-bitcode" \
 	CONFIGURATION=Release \
     GCC_PREPROCESSOR_DEFINITIONS='CFRunLoopRunInMode=CFRunLoopRunInMode_fix' \
 	-project SDL2-*/Xcode/SDL/SDL.xcodeproj -scheme "Static Library-iOS" -sdk iphonesimulator;
+fi
 
-ls -la $BUILD_DIR/build/*/*/*/libSDL2.a;
+if [ "$ONLY_IPHONEOS" = "1" ]; then
+	ls -la $BUILD_DIR/build/iphoneos/arm64/*/libSDL2.a;
+else
+	ls -la $BUILD_DIR/build/*/*/*/libSDL2.a;
+fi
 
 echo "Copy staticlib...";
 
 [[ -d $OUTPUT/iphoneos/arm64 ]] || mkdir -pv $OUTPUT/iphoneos/arm64;
 cp -v $BUILD_DIR/build/iphoneos/arm64/*/libSDL2.a $OUTPUT/iphoneos/arm64/;
 
+if [ "$ONLY_IPHONEOS" != "1" ]; then
 [[ -d $OUTPUT/iphonesimulator/arm64 ]] || mkdir -pv $OUTPUT/iphonesimulator/arm64;
 cp -v $BUILD_DIR/build/iphonesimulator/arm64/*/libSDL2.a $OUTPUT/iphonesimulator/arm64/;
 
 [[ -d $OUTPUT/iphonesimulator/x86_64 ]] || mkdir -pv $OUTPUT/iphonesimulator/x86_64;
 cp -v $BUILD_DIR/build/iphonesimulator/x86_64/*/libSDL2.a $OUTPUT/iphonesimulator/x86_64/;
+fi
 
 echo "Copy headers...";
 [[ -d "$OUTPUT/include/SDL2" ]] || mkdir -pv $OUTPUT/include/SDL2;
