@@ -92,6 +92,19 @@ jobs:
               'cmake -DCMAKE_OSX_SYSROOT=$SDK_NAME -DCMAKE_OSX_ARCHITECTURES=$ARCH_NAME  \\\n\t-DCMAKE_OSX_DEPLOYMENT_TARGET=$DEPLOYMENT_TARGET -DCMAKE_BUILD_TYPE=Debug \\\n\t-DProtobuf_INCLUDE_DIR="$SOURCE_ROOT/external/protobuf/src" \\\n\t-DProtobuf_LIBRARY="$SOURCE_ROOT/output/$SDK_NAME/$ARCH_NAME/libprotobuf.a" \\\n\t-DProtobuf_PROTOC_EXECUTABLE="$(which protoc)" \\\n\t-DCMAKE_CXX_FLAGS="' + inc_flags + '" \\\n\t-DCMAKE_C_FLAGS="' + inc_flags + '" ..;'
           )
           p2.write_text(s2)
+
+          # Patch adb-mobile make-zstd.sh to disable Zstd CLI programs which cause Xcode 15 build failure
+          p3 = Path('external/adb-mobile/porting/scripts/make-zstd.sh')
+          s3 = p3.read_text()
+          s3 = s3.replace(
+              'cp -av $PORTING_ROOT/cmake/CMakeLists.zstd.txt $cmake_root/../programs/CMakeLists.txt;',
+              '# cp -av $PORTING_ROOT/cmake/CMakeLists.zstd.txt $cmake_root/../programs/CMakeLists.txt;'
+          )
+          s3 = s3.replace(
+              'cmake .. -G Xcode -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE -DPLATFORM=$PLATFORM \\\n\t-DDEPLOYMENT_TARGET=$DEPLOYMENT_TARGET;',
+              'cmake .. -G Xcode -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE -DPLATFORM=$PLATFORM \\\n\t-DDEPLOYMENT_TARGET=$DEPLOYMENT_TARGET -DZSTD_BUILD_PROGRAMS=OFF;'
+          )
+          p3.write_text(s3)
           PY
 
           cmake --version
