@@ -557,4 +557,61 @@ void ScrcpyHandleFrame(AVFrame *frame) {
     [self sendKeycodeEvent:SDL_SCANCODE_S keycode:SDLK_s keymod:KMOD_CTRL];
 }
 
+__attribute__((visibility("default")))
+void ScrcpySendKeycodeEvent(SDL_Scancode scancode, SDL_Keycode keycode, SDL_Keymod keymod) {
+    SDL_Keysym keySym;
+    keySym.scancode = scancode;
+    keySym.sym = keycode;
+    keySym.mod = keymod;
+    keySym.unused = 1;
+    
+    // Send key down event
+    {
+        SDL_KeyboardEvent keyEvent;
+        keyEvent.type = SDL_KEYDOWN;
+        keyEvent.state = SDL_PRESSED;
+        keyEvent.repeat = '\0';
+        keyEvent.keysym = keySym;
+        
+        SDL_Event event;
+        event.type = keyEvent.type;
+        event.key = keyEvent;
+        
+        SDL_PushEvent(&event);
+    }
+    
+    // Send key up event
+    {
+        SDL_KeyboardEvent keyEvent;
+        keyEvent.type = SDL_KEYUP;
+        keyEvent.state = SDL_RELEASED;
+        keyEvent.repeat = '\0';
+        keyEvent.keysym = keySym;
+        
+        SDL_Event event;
+        event.type = keyEvent.type;
+        event.key = keyEvent;
+        
+        SDL_PushEvent(&event);
+    }
+}
+
+__attribute__((visibility("default")))
+void ScrcpyTryResetVideo(void) {
+    static NSTimeInterval lastResetTime = 0;
+    if (NSDate.date.timeIntervalSince1970 - lastResetTime < 1.0) {
+        return;
+    }
+    ScrcpySendKeycodeEvent(SDL_SCANCODE_R, SDLK_r, KMOD_LCTRL | KMOD_SHIFT);
+    NSLog(@"-> [1] Reset video by LCTRL+SHIFT+R");
+    lastResetTime = NSDate.date.timeIntervalSince1970;
+}
+
+__attribute__((visibility("default")))
+float ScrcpyAudioVolumeScale(float update_scale) {
+    static float volume_scale = 1.0f;
+    volume_scale = update_scale > 0 ? update_scale : volume_scale;
+    return volume_scale;
+}
+
 @end
