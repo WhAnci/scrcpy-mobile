@@ -52,7 +52,7 @@ void adb_connect_status_updated(const char *serial, const char *status) {
         ScrcpySharedClient.adbStatusUpdated(adbSerial, adbStatus);
 }
 
-void ScrcpyUpdateStatus(enum ScrcpyStatus status) {
+void ScrcpyUpdateStatus(enum ScrcpyStatus status, const char *message) {
     ScrcpySharedClient.status = status;
     if (ScrcpySharedClient.scrcpyStatusUpdated)
        ScrcpySharedClient.scrcpyStatusUpdated(status);
@@ -335,10 +335,10 @@ void ScrcpyHandleFrame(AVFrame *frame) {
         args[idx] = [scrcpyOptions[idx-1] UTF8String];
     }
 
-    ScrcpyUpdateStatus(ScrcpyStatusConnecting);
+    ScrcpyUpdateStatus(ScrcpyStatusConnecting, NULL);
     scrcpy_main((int)scrcpyOptions.count+1, (char **)args);
     
-    ScrcpyUpdateStatus(ScrcpyStatusDisconnected);
+    ScrcpyUpdateStatus(ScrcpyStatusDisconnected, NULL);
 }
 
 -(void)stopScrcpy {
@@ -446,8 +446,9 @@ void ScrcpyHandleFrame(AVFrame *frame) {
     for (int i = 0; i < argc; i++) {
         argv[i] = strdup(commands[i].UTF8String);
     }
-    char *output_message;
-    int code = adb_commandline_porting(argc, (const char **)argv, &output_message);
+    char *output_message = NULL;
+    size_t output_message_size = 0;
+    int code = adb_commandline_porting(&output_message, &output_message_size, argc, (const char **)argv);
     if (message != nil)
         *message = output_message == NULL ? nil : [NSString stringWithUTF8String:output_message];
     return (NSInteger)code;
